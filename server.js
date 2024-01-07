@@ -18,6 +18,10 @@ const router = new Router();
 const server = new ApolloServer({
   typeDefs,
   resolvers,
+  // formatResponse: (response) => {
+  //   console.log(response);
+  //   return response;
+  // },
   context: async ({ ctx }) => {
     const auth = ctx.headers.authorization;
     let currentUser = null;
@@ -45,7 +49,7 @@ async function startServer() {
   });
   app.use(router.routes()).use(router.allowedMethods());
 
-  const PORT = process.env.PORT || 5000;
+  const PORT = process.env.PORT || 8050;
   app.listen(PORT, () =>
     console.log(
       `🚀 Server ready at http://localhost:${PORT}${server.graphqlPath}`

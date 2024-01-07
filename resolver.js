@@ -8,6 +8,7 @@ const pubsub = new PubSub();
 const mongoose = require('mongoose');
 
 const User = require('./models/User');
+const Team = require('./models/Team');
 const Client = require('./models/Client');
 const Category = require('./models/Category');
 const Subgroup = require('./models/Subgroup');
@@ -21,7 +22,13 @@ const resolvers = {
     },
     users: async () => {
       try {
-        const users = User.find({});
+        const users = User.find({})
+          .populate('favorites')
+          .populate('settings')
+          .populate({
+            path: 'team',
+            populate: { path: 'leader' },
+          });
         return users;
       } catch (error) {
         throw new GraphQLError('Database retrieval error', {
@@ -45,14 +52,29 @@ const resolvers = {
         });
       }
     },
-    singleUser: async (root, args) => {
+    singleUser: async (root, { userId }) => {
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        throw new GraphQLError('Invalid client ID', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+            invalidArgs: userId,
+          },
+        });
+      }
       try {
-        const user = await User.findById(args.userId);
+        const user = await User.findById(userId)
+          .populate('favorites')
+          .populate('settings')
+          .populate({
+            path: 'team',
+            populate: { path: 'leader' },
+          });
+
         if (!user) {
           throw new GraphQLError('User not found', {
             extensions: {
               code: 'BAD_USER_INPUT',
-              invalidArgs: args.userId,
+              invalidArgs: userId,
             },
           });
         }
@@ -194,12 +216,49 @@ const resolvers = {
     },
     subgroups: async () => {
       try {
-        const subgroups = Subgroup.find({});
+        const subgroups = Subgroup.find({}).populate({
+          path: 'processes',
+        });
         return subgroups;
       } catch (error) {
         throw new GraphQLError('Database retrieval error', {
           extensions: {
             code: 'BAD_USER_INPUT',
+            errorMessage: error.message,
+          },
+        });
+      }
+    },
+    subgroupDetails: async (root, { subgroupId }) => {
+      if (!mongoose.Types.ObjectId.isValid(subgroupId)) {
+        throw new GraphQLError('Invalid client ID', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+            invalidArgs: subgroupId,
+          },
+        });
+      }
+
+      try {
+        const subgroup = await Subgroup.findById(subgroupId).populate({
+          path: 'processes',
+        });
+
+        if (!subgroup) {
+          throw new GraphQLError('Client not found', {
+            extensions: {
+              code: 'BAD_USER_INPUT',
+              invalidArgs: subgroupId,
+            },
+          });
+        }
+
+        return subgroup;
+      } catch (error) {
+        throw new GraphQLError('Database retrieval error', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+            invalidArgs: subgroupId,
             errorMessage: error.message,
           },
         });
@@ -257,9 +316,26 @@ const resolvers = {
         },
       });
     },
+    teams: async () => {
+      try {
+        const teams = Team.find({})
+          .populate('clients')
+          .populate('members')
+          .populate('leader');
+        return teams;
+      } catch (error) {
+        throw new GraphQLError('Database retrieval error', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+            errorMessage: error.message,
+          },
+        });
+      }
+    },
   },
   Mutation: {
     createUser: async (root, args) => {
+      console.log('Received args:', args);
       try {
         const saltRounds = 10;
         const passwordHash = await bcrypt.hash(args.password, saltRounds);
@@ -270,7 +346,7 @@ const resolvers = {
           throw new GraphQLError('User already exists', {
             extensions: {
               code: 'BAD_USER_INPUT',
-              invalidArgs: args.email,
+              invalidArgs: args,
             },
           });
         }
@@ -280,17 +356,41 @@ const resolvers = {
         const user = new User({
           email: args.email,
           passwordHash,
+          title: args.title,
+          firstname: args.firstname,
+          lastname: args.lastname,
+          birthDate: args.birthDate,
+          gender: args.gender,
+          nationality: args.nationality,
+          address: args.address,
+          phone: args.phone,
           profileImage: args.profileImage,
           description: args.description,
+          employeeLevel: args.employeeLevel,
+          status: args.status,
+          team: args.team,
+          securityQuestions: args.securityQuestions,
           role,
         });
 
-        return user.save();
+        await user.validate();
+        const savedUser = await user.save();
+
+        if (args.team) {
+          const team = await Team.findById(args.team);
+          if (team) {
+            team.members.push(savedUser._id);
+            await team.save();
+          }
+        }
+
+        return savedUser;
       } catch (error) {
+        console.log(error);
         throw new GraphQLError('Creating the user failed', {
           extensions: {
             code: 'BAD_USER_INPUT',
-            invalidArgs: args.email,
+            invalidArgs: args,
             errorMessage: error.message,
           },
         });
@@ -745,7 +845,9 @@ const resolvers = {
           });
         }
 
-        let processesToMove = await Process.find({ _id: { $in: processIds } });
+        let processesToMove = await Process.find({
+          _id: { $in: processIds },
+        });
         if (!processesToMove.length) {
           throw new GraphQLError('No valid processes found for given IDs', {
             extensions: {

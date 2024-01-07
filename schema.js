@@ -4,15 +4,48 @@ const typeDefs = `
         value: String!    
     }
 
+    type Team {
+        _id: ID
+        teamName: String
+        members: [User]
+        leader: User
+        clients: [Client]
+    }
+
+    type SecurityQuestion {
+        question: String
+        answer: String
+    }
+
+    input SecurityQuestionInput {
+        question: String
+        answer: String
+      }
+      
+
     type User {
         _id: ID!
         email: String!
         passwordHash: String!
+        firstname: String!
+        lastname: String!
+        gender: String!
+        title: String
+        birthDate: String
+        nationality: String
+        address: String
+        phone: String
         favorites: [Client]
         profileImage: String
         description: String
-        settings: UserSettings
+        status: String
+        employeeLevel: String
         role: String
+        securityQuestions: [SecurityQuestion]
+        registrationDate: String
+        lastLogin: String
+        team: Team
+        settings: ClientSpecificSettings
     }
 
     type UserSettings {
@@ -69,7 +102,7 @@ const typeDefs = `
     }
 
     type ClientSpecificSettings {
-        clientId: ID!
+        clientId: ID
         hiddenEntities: [HiddenEntity]
     }
     
@@ -103,19 +136,19 @@ const typeDefs = `
         toggleCategory(categoryId: ID!): Category
 
         subgroups: [Subgroup]
-        findSubgroup(subgroupId: ID!): Subgroup
+        subgroupDetails(subgroupId: ID!): Subgroup
         toggleSubgroup(subgroupId: ID!): Subgroup
 
         processes: [Process]
         findProcess(processId: ID!): Process
         toggleProcess(processId: ID!): Process
 
+        teams: [Team]
+
         getVisibleCategoriesForClient(clientId: ID!): [Category]
 
         auditLogs: [AuditLog]
-        registerWebhook(url: String!): WebhookResponse!
-
-        
+        registerWebhook(url: String!): WebhookResponse!        
 
     }
 
@@ -133,7 +166,25 @@ const typeDefs = `
 
     type Mutation {
 
-        createUser(email: String!, password: String!, profileImage: String, description: String): UserResult
+        createUser(
+            email: String!,
+            password: String!,
+            firstname: String!,
+            lastname: String!,
+            gender: String!,
+            profileImage: String,
+            description: String,
+            title: String,
+            birthDate: String,
+            nationality: String,
+            address: String,
+            phone: String,
+            role: String,
+            employeeLevel: String,
+            status: String,
+            team: String,
+            securityQuestions: [SecurityQuestionInput]
+          ): User        
         login(email: String!, password: String!): Token
 
         addFavorite(userId: ID!, clientId: ID!): User
