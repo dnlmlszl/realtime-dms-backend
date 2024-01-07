@@ -5,11 +5,12 @@ const typeDefs = `
     }
 
     type Team {
-        _id: ID
+        _id: ID!
         teamName: String
         members: [User]
         leader: User
         clients: [Client]
+        subsidiary: String!
     }
 
     type SecurityQuestion {
@@ -144,6 +145,7 @@ const typeDefs = `
         toggleProcess(processId: ID!): Process
 
         teams: [Team]
+        teamDetails(teamId: ID!): Team
 
         getVisibleCategoriesForClient(clientId: ID!): [Category]
 
@@ -186,6 +188,8 @@ const typeDefs = `
             securityQuestions: [SecurityQuestionInput]
           ): User        
         login(email: String!, password: String!): Token
+
+        createTeam(teamName: String!, subsidiary: String! leader: ID): Team
 
         addFavorite(userId: ID!, clientId: ID!): User
         toggleFavorite(userId: ID!, clientId: ID!): User

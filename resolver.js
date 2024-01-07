@@ -322,7 +322,52 @@ const resolvers = {
           .populate('clients')
           .populate('members')
           .populate('leader');
+
+        if (!teams) {
+          throw new GraphQLError('Teams not found', {
+            extensions: {
+              code: 'BAD_USER_INPUT',
+              errorMessage: error.message,
+            },
+          });
+        }
+
         return teams;
+      } catch (error) {
+        throw new GraphQLError('Database retrieval error', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+            errorMessage: error.message,
+          },
+        });
+      }
+    },
+    teamDetails: async (root, { teamId }) => {
+      if (!teamId) {
+        throw new GraphQLError('Invalid team ID', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+            invalidArgs: teamId,
+          },
+        });
+      }
+
+      try {
+        const team = await Team.findById(teamId)
+          .populate('clients')
+          .populate('members')
+          .populate('leader');
+
+        if (!team) {
+          throw new GraphQLError('Team not found', {
+            extensions: {
+              code: 'BAD_USER_INPUT',
+              invalidArgs: teamId,
+            },
+          });
+        }
+
+        return team;
       } catch (error) {
         throw new GraphQLError('Database retrieval error', {
           extensions: {
@@ -335,7 +380,6 @@ const resolvers = {
   },
   Mutation: {
     createUser: async (root, args) => {
-      console.log('Received args:', args);
       try {
         const saltRounds = 10;
         const passwordHash = await bcrypt.hash(args.password, saltRounds);
@@ -424,6 +468,8 @@ const resolvers = {
         email: user.email,
         role: user.role,
         id: user._id,
+        profileImage: user.profileImage,
+        firstname: user.firstname,
       };
 
       const accessToken = jwt.sign(userForToken, process.env.SECRET, {
@@ -480,6 +526,66 @@ const resolvers = {
         throw new GraphQLError('Database retrieval error', {
           extensions: {
             code: 'DATABASE_ERROR',
+            errorMessage: error.message,
+          },
+        });
+      }
+    },
+    createTeam: async (root, args) => {
+      console.log(args);
+      try {
+        const existingLeaderTeam = await Team.findOne({
+          leader: args.leader,
+        });
+        if (existingLeaderTeam) {
+          throw new GraphQLError(
+            'The user is already a leader of another team',
+            {
+              extensions: {
+                code: 'LEADER_ALREADY_ASSIGNED',
+                invalidArgs: args,
+              },
+            }
+          );
+        }
+
+        const teamsWithUser = await Team.find({ members: args.leader });
+
+        for (const team of teamsWithUser) {
+          team.members = team.members.filter(
+            (memberId) => !memberId.equals(args.leader)
+          );
+          await team.save();
+        }
+
+        if (!args.teamName || !args.subsidiary) {
+          throw new GraphQLError('Name and subsidiary are required fields', {
+            extensions: {
+              code: 'BAD_USER_INPUT',
+              invalidArgs: args,
+            },
+          });
+        }
+
+        const team = new Team({
+          teamName: args.teamName,
+          subsidiary: args.subsidiary,
+          leader: args.leader,
+          members: [args.leader],
+          clients: [],
+        });
+
+        const savedTeam = await team.save();
+
+        await User.findByIdAndUpdate(args.leader, { team: savedTeam._id });
+
+        console.log(savedTeam);
+        return savedTeam;
+      } catch (error) {
+        throw new GraphQLError('Creating the team failed', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+            invalidArgs: args,
             errorMessage: error.message,
           },
         });
