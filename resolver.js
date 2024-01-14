@@ -464,12 +464,20 @@ const resolvers = {
         });
       }
 
+      const favorites = await Client.find({ _id: { $in: user.favorites } });
+
       const userForToken = {
         email: user.email,
         role: user.role,
         id: user._id,
         profileImage: user.profileImage,
+        title: user.title,
+        lastname: user.lastname,
         firstname: user.firstname,
+        favorites: favorites.map((client) => ({
+          id: client._id,
+          name: client.name,
+        })),
       };
 
       const accessToken = jwt.sign(userForToken, process.env.SECRET, {
@@ -595,6 +603,10 @@ const resolvers = {
       try {
         const client = new Client({
           name: args.name,
+          taxId: args.taxId,
+          description: args.description,
+          processGroups: args.processGroups,
+          isFavorite: false,
         });
 
         const savedClient = await client.save();
@@ -603,7 +615,7 @@ const resolvers = {
         throw new GraphQLError('Creating the client failed', {
           extensions: {
             code: 'BAD_USER_INPUT',
-            invalidArgs: args.name,
+            invalidArgs: Object.keys(args),
             errorMessage: error.message,
           },
         });
@@ -785,6 +797,15 @@ const resolvers = {
     toggleFavorite: async (root, args) => {
       try {
         const user = await User.findById(args.userId);
+        if (!user) {
+          throw new GraphQLError('User not found', {
+            extensions: {
+              code: 'BAD_USER_INPUT',
+              invalidArgs: args.userId,
+            },
+          });
+        }
+
         const index = user.favorites.indexOf(args.clientId);
         if (index === -1) {
           user.favorites.push(args.clientId);
@@ -792,8 +813,8 @@ const resolvers = {
           user.favorites.splice(index, 1);
         }
 
-        const updatedUser = await user.save();
-        return updatedUser;
+        await user.save();
+        return User.findById(user._id).populate('favorites');
       } catch (error) {
         throw new GraphQLError('Toggling favorite failed', {
           extensions: {
@@ -1000,7 +1021,7 @@ const resolvers = {
         await category.save();
         return category;
       } catch (error) {
-        throw new GraphQLError('Error hiding category', {
+        throw new GraphQLError('Error toggling category visibility', {
           extensions: {
             code: 'BAD_USER_INPUT',
             invalidArgs: args.categoryId,
@@ -1014,7 +1035,7 @@ const resolvers = {
         const subgroup = await Subgroup.findById(args.subgroupId);
 
         if (!subgroup) {
-          throw new GraphQLError('Category not found', {
+          throw new GraphQLError('Subgroup not found', {
             extensions: {
               code: 'BAD_USER_INPUT',
               invalidArgs: args.subgroupId,
@@ -1027,7 +1048,7 @@ const resolvers = {
         await subgroup.save();
         return subgroup;
       } catch (error) {
-        throw new GraphQLError('Error hiding category', {
+        throw new GraphQLError('Error toggling subgroup visibility', {
           extensions: {
             code: 'BAD_USER_INPUT',
             invalidArgs: args.subgroupId,
@@ -1041,7 +1062,7 @@ const resolvers = {
         const process = await Process.findById(args.processId);
 
         if (!process) {
-          throw new GraphQLError('Category not found', {
+          throw new GraphQLError('Process not found', {
             extensions: {
               code: 'BAD_USER_INPUT',
               invalidArgs: args.processId,
@@ -1054,7 +1075,7 @@ const resolvers = {
         await process.save();
         return process;
       } catch (error) {
-        throw new GraphQLError('Error hiding category', {
+        throw new GraphQLError('Error toggling process visibility', {
           extensions: {
             code: 'BAD_USER_INPUT',
             invalidArgs: args.processId,

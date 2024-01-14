@@ -194,7 +194,7 @@ const typeDefs = `
         addFavorite(userId: ID!, clientId: ID!): User
         toggleFavorite(userId: ID!, clientId: ID!): User
 
-        addClient(name: String!): Client
+        addClient(name: String!, taxId: String, description: String, processGroups: [ID]): Client
         usersFilter(filter: UserFilter, sort: UserSort): [User]
 
         addCategory(name: String!): Category
